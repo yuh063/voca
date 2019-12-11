@@ -21,6 +21,7 @@ import resampy
 import numpy as np
 import tensorflow as tf
 from python_speech_features import mfcc
+from tqdm import tqdm
 
 
 def interpolate_features(features, input_rate, output_rate, output_len=None):
@@ -109,9 +110,12 @@ class AudioHandler:
         processed_audio = copy.deepcopy(audio)
         with tf.Session(graph=graph) as sess:
             sample_rate = self.config['sample_rate']
-            for subj, audio_sample in audio.items():
-                # TODO need to fix resample, might be able to remove in the future
-                resampled_audio = resampy.resample(audio_sample.astype(float), sample_rate, 16000) 
+            for subj, audio_sample in tqdm(audio.items()):
+                try:
+                    resampled_audio = resampy.resample(audio_sample.astype(float), sample_rate, 16000)
+                except ValueError:
+                    print(subj)
+                    continue
                 input_vector = audioToInputVector(resampled_audio.astype('int16'), 16000, n_input, n_context)
                 network_output = sess.run(layer_6, feed_dict={input_tensor: input_vector[np.newaxis, ...], 
                                                               seq_length: [input_vector.shape[0]]})
