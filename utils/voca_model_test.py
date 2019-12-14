@@ -30,7 +30,7 @@ from scipy.io import wavfile
 from sklearn.manifold import TSNE
 
 # from psbody.mesh import Mesh
-from utils.rendering import render_mesh_helper
+# from utils.rendering import render_mesh_helper
 from utils.losses import *
 from utils.speech_encoder_test import SpeechEncoder
 from utils.expression_layer_test import ExpressionLayer
@@ -99,8 +99,8 @@ class VOCAModel(BaseModel):
         # self.verts_reg_loss = self._verts_regularizer_loss()
         # self.loss = self.rec_loss + self.velocity_loss + self.acceleration_loss + self.verts_reg_loss
 
-        tf.summary.scalar('loss_training', self.loss, collections=['train'])
-        tf.summary.scalar('loss_validation', self.loss, collections=['validation'])
+        tf.summary.scalar('loss', self.loss, collections=['train', 'validation'])
+        # tf.summary.scalar('loss_validation', self.loss, collections=['validation'])
         self.t_vars = tf.trainable_variables()
 
     # calculate mean square error
@@ -108,8 +108,10 @@ class VOCAModel(BaseModel):
         with tf.name_scope('Reconstruction_loss'):
             rec_loss = reconstruction_loss(predicted=self.output_decoder, real=self.target_blendshapes,
                                            want_absolute_loss=self.config['absolute_reconstruction_loss'])
-        tf.summary.scalar('reconstruction_loss_training', rec_loss, collections=['train'])
-        tf.summary.scalar('reconstruction_loss_validation', rec_loss, collections=['validation'])
+        tf.summary.scalar('reconstruction_loss', rec_loss, collections=['train'])
+        tf.summary.scalar('reconstruction_loss', rec_loss, collections=['validation'])
+        # tf.summary.scalar('reconstruction_loss_training', rec_loss, collections=['train'])
+        # tf.summary.scalar('reconstruction_loss_validation', rec_loss, collections=['validation'])
         return rec_loss
 
     '''
@@ -178,7 +180,7 @@ class VOCAModel(BaseModel):
 
     def _init_training(self):
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        decay_steps = self.batcher.get_training_size()/self.config['batch_size']
+        decay_steps = 5*self.batcher.get_training_size()/self.config['batch_size']
         decay_rate = self.config['decay_rate']
         if decay_rate < 1:
             self.global_learning_rate = tf.train.exponential_decay(self.config['learning_rate'], self.global_step,
@@ -216,7 +218,6 @@ class VOCAModel(BaseModel):
 
             if epoch % 10 == 0:
                 self._save(g_step)
-
 
         '''        
             if epoch % 25 == 0:
