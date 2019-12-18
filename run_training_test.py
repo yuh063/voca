@@ -37,18 +37,18 @@ def main():
     config['deepspeech_graph_fname'] = './ds_graph/output_graph.pb'
     config['sample_rate'] = 48000
     config['clear_unmatched_animation_pairs'] = True
-    config['checkpoint_dir'] = './littlelights_training_BN'
+    config['checkpoint_dir'] = './littlelights_training_debug_2'
     config['num_blendshapes'] = 51
     config['expression_dim'] = 64
     config['speech_encoder_size_factor'] = 1.0
     config['absolute_reconstruction_loss'] = False
-    config['velocity_weight'] = 10.0
-    config['num_consecutive_frames'] = 1
+    config['velocity_weight'] = 2.0
+    config['num_consecutive_frames'] = 2
     config['dataset_path'] = '/home/littlelight/voca/littlelights_dataset_v2/'
     config['audio_json_pair_file_name'] = 'audio_json_match.txt'
 
-    config['batch_size'] = 128
-    config['decay_rate'] = 0.8
+    config['batch_size'] = 64
+    config['decay_rate'] = 0.9
     config['adam_beta1_value'] = 0.9
     config['learning_rate'] = 1e-4
     config['epoch_num'] = 100
