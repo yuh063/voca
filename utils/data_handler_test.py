@@ -39,7 +39,6 @@ class DataHandler:
         return self.train_pairs, self.validate_pairs, self.test_pairs
 
     def slice_data(self, pairs):
-        # TODO add velocity loss feature in the future
         return self._slice_data_helper(pairs)
 
     def byteify(self, input):
@@ -115,7 +114,17 @@ class DataHandler:
             if self.config['clear_unmatched_animation_pairs']:
                 self._clear_unmatched_animation_pairs(self.json_files)
             self._save_dicts(folder_path)
-        self._init_data_splits()
+        if self._check_data_split(folder_path):
+            with open("{}train_pairs.pickle".format(folder_path), "rb") as f:
+                self.train_pairs = pickle.load(f)
+            with open("{}test_pairs.pickle".format(folder_path), "rb") as f:
+                self.test_pairs.update(pickle.load(f))
+            with open("{}validation_pairs.pickle".format(folder_path), "rb") as f:
+                self.validation_pairs.update(pickle.load(f))
+        else:
+            self._init_data_splits()
+            self._save_pairs(folder_path)
+        print("data split complete")
 
     def _processed_data_exist(self, folder_path):
         if exists("{}file_frame_dict.pickle".format(folder_path)) and exists("{}blendshape_dict.pickle".format(folder_path)) \
@@ -211,20 +220,39 @@ class DataHandler:
         with open("{}file_frame_dict.pickle".format(folder_path), "wb") as pickle_out:
             pickle.dump(self.file_frame_dict, pickle_out)
 
+    def _check_data_split(self, folder_path):
+        if exists("{}train_pairs.pickle".format(folder_path)) and exists("{}test_pairs.pickle".format(folder_path)) \
+                and exists("validate_pairs.pickle".format(folder_path)):
+            return True
+        else:
+            return False
+
     def _init_data_splits(self):
         selected_files = self.file_frame_dict.keys()
         self.train_keys, test_and_validate_keys = train_test_split(selected_files, test_size=0.2)
-        self.test_keys, self.validate_keys = train_test_split(test_and_validate_keys, test_size = 0.2)
+        self.test_keys, self.validate_keys = train_test_split(test_and_validate_keys, test_size = 0.5)
         self.train_pairs = self._get_file_frame_pair(self.train_keys)
         self.test_pairs = self._get_file_frame_pair(self.test_keys)
         self.validate_pairs = self._get_file_frame_pair(self.validate_keys)
+
+    def _save_pairs(self, folder_path):
+        with open("{}train_pairs.pickle".format(folder_path), "wb") as pickle_out:
+            pickle.dump(self.train_pairs, pickle_out)
+        with open("{}test_pairs.pickle".format(folder_path), "wb") as pickle_out:
+            pickle.dump(self.train_pairs, pickle_out)
+        with open("{}validate_pairs.pickle".format(folder_path), "wb") as pickle_out:
+            pickle.dump(self.train_pairs, pickle_out)
+        with open('test_listfile.txt', 'w') as filehandle:
+            for listitem in self.test_keys:
+                filehandle.write('%s\n' % listitem)
 
     def _get_file_frame_pair(self, keys):
         file_frame_pair = []
         for key in keys:
             frame = self.file_frame_dict[key]
-            for i in xrange(frame):
-                file_frame_pair.append([key, i])
+            for i in xrange(frame - 1):
+                if i % 2:
+                    file_frame_pair.append([key, i])
         return file_frame_pair
 
     def _get_frames(self, file_name):
@@ -240,7 +268,9 @@ class DataHandler:
         processed_audio = []
         for pair in pairs:
             blendshapes.append(self.blendshape_dict[pair[0]][pair[1]])
+            blendshapes.append(self.blendshape_dict[pair[0]][pair[1]]+1)
             processed_audio.append(self.processed_audio[pair[0]][pair[1], :, :])
+            processed_audio.append(self.processed_audio[pair[0]][pair[1]+1, :, :])
         blendshapes = np.stack(blendshapes)
         processed_audio = np.stack(processed_audio)
         return processed_audio, blendshapes

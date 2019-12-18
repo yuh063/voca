@@ -93,8 +93,8 @@ class VOCAModel(BaseModel):
 
     def _build_losses(self):
         self.rec_loss = self._reconstruction_loss()
-        # self.velocity_loss = self._velocity_loss()
-        self.loss = self.rec_loss
+        self.velocity_loss = self._velocity_loss()
+        self.loss = self.rec_loss + self.velocity_loss
         # self.acceleration_loss = self._acceleration_loss()
         # self.verts_reg_loss = self._verts_regularizer_loss()
         # self.loss = self.rec_loss + self.velocity_loss + self.acceleration_loss + self.verts_reg_loss
@@ -114,24 +114,26 @@ class VOCAModel(BaseModel):
         # tf.summary.scalar('reconstruction_loss_validation', rec_loss, collections=['validation'])
         return rec_loss
 
-    '''
     def _velocity_loss(self):
         if self.config['velocity_weight'] > 0.0:
             assert(self.config['num_consecutive_frames'] >= 2)
-            blendshapes_predicted = tf.reshape(self.output_decoder, [-1, self.config['num_consecutive_frames'], self.config['num_blendshapes']])
+            blendshapes_predicted = tf.reshape(self.output_decoder, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames'], ])
             print(self.output_decoder.get_shape())
             print(blendshapes_predicted.get_shape())
-            x1_pred = tf.reshape(blendshapes_predicted[:, -1, :], [-1, self.config['num_blendshapes'], 1])
-            x2_pred = tf.reshape(blendshapes_predicted[:, -2, :], [-1, self.config['num_blendshapes'], 1])
+            x1_pred = blendshapes_predicted[:, :, 1]
+            x2_pred = blendshapes_predicted[:, :, 0]
             velocity_pred = x1_pred-x2_pred
-            print(velocity_pred.get_shape())
-            return 0.0
+            velocity_pred = tf.expand_dims(velocity_pred, 2)
 
-            #TODO need to change shape in the future
-            verts_target = tf.reshape(self.target_vertices, [-1, self.config['num_consecutive_frames'], self.config['num_vertices'], 3])
-            x1_target = tf.reshape(verts_target[:, -1, :], [-1, self.config['num_vertices'], 3, 1])
-            x2_target = tf.reshape(verts_target[:, -2, :], [-1, self.config['num_vertices'], 3, 1])
+            print(velocity_pred.get_shape())
+
+            blendshapes_target = tf.reshape(self.target_blendshapes, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames'], ])
+            x1_target = blendshapes_target[:, :, 1]
+            x2_target = blendshapes_target[:, :, 0]
             velocity_target = x1_target-x2_target
+            velocity_target = tf.expand_dims(velocity_target, 2)
+
+            print(velocity_target.get_shape())
 
             with tf.name_scope('Velocity_loss'):
                 velocity_loss = self.config['velocity_weight']*reconstruction_loss(predicted=velocity_pred, real=velocity_target,
@@ -139,10 +141,10 @@ class VOCAModel(BaseModel):
             tf.summary.scalar('velocity_loss_training', velocity_loss, collections=['train'])
             tf.summary.scalar('velocity_loss_validation', velocity_loss, collections=['validation'])
             return velocity_loss
-            
         else:
             return 0.0
 
+    '''
     def _acceleration_loss(self):
         if self.config['acceleration_weight'] > 0.0:
             assert(self.config['num_consecutive_frames'] >= 3)
