@@ -268,7 +268,7 @@ class DataHandler:
         processed_audio = []
         for pair in pairs:
             blendshapes.append(self.blendshape_dict[pair[0]][pair[1]])
-            blendshapes.append(self.blendshape_dict[pair[0]][pair[1]]+1)
+            blendshapes.append(self.blendshape_dict[pair[0]][pair[1]+1])
             processed_audio.append(self.processed_audio[pair[0]][pair[1], :, :])
             processed_audio.append(self.processed_audio[pair[0]][pair[1]+1, :, :])
         blendshapes = np.stack(blendshapes)
