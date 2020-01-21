@@ -22,10 +22,16 @@ import tensorflow as tf
 
 def reconstruction_loss(predicted, real, want_absolute_loss=True, want_in_mm=False, weights=None):
     if weights is not None:
+        '''
         assert predicted.shape[1] == real.shape[1] == weights.shape[0]
         tf_weights = tf.constant(weights, dtype=tf.float32)
         predicted = tf.einsum('abcd,bd->abcd', predicted, tf_weights)
         real = tf.einsum('abcd,bd->abcd', real, tf_weights)
+        '''
+        assert predicted.shape[2] == real.shape[2] == weights.shape[0]
+        tf_weights = tf.constant(weights, dtype=tf.float32)
+        predicted = tf.einsum('abc,c->abc', predicted, tf_weights)
+        real = tf.einsum('abc,c->abc', real, tf_weights)
 
     if want_in_mm:
         predicted, real = predicted * 1000, real * 1000

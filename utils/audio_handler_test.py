@@ -46,6 +46,7 @@ class AudioHandler:
         self.num_audio_features = config['num_audio_features']
         self.audio_window_size = config['audio_window_size']
         self.audio_window_stride = config['audio_window_stride']
+        self.frame_rate = config['frame_rate']
 
     def process(self, audio):
         if self.audio_feature_type.lower() == "none":
@@ -122,9 +123,8 @@ class AudioHandler:
 
                 # Resample network output from 50 fps to 60 fps
                 audio_len_s = float(len(audio_sample)) / sample_rate
-                num_frames = int(round(audio_len_s * 60))
-                # TODO need to fix num_frames, audio file cannot align with json file
-                network_output = interpolate_features(network_output[:, 0], 50, 60,
+                num_frames = int(round(audio_len_s * self.frame_rate))
+                network_output = interpolate_features(network_output[:, 0], 50, self.frame_rate,
                                                       output_len=num_frames)
                 
                 # Make windows

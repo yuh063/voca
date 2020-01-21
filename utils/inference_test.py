@@ -16,6 +16,7 @@ For comments or questions, please email us at voca@tue.mpg.de
 '''
 
 
+import re
 import os
 import json
 import time
@@ -25,6 +26,7 @@ import tensorflow as tf
 import scipy
 from scipy.io import wavfile
 from scipy.io.wavfile import read
+from scipy.ndimage import uniform_filter1d
 
 from audio_handler_test import AudioHandler
 from psbody.mesh import Mesh
@@ -35,10 +37,8 @@ def process_audio(ds_path, audio, sample_rate):
     config['deepspeech_graph_fname'] = ds_path
     config['audio_feature_type'] = 'deepspeech'
     config['num_audio_features'] = 29
-
     config['audio_window_size'] = 16
     config['audio_window_stride'] = 1
-
     config['sample_rate'] = 48000
 
     audio_arr = np.array(audio, dtype=float)
@@ -47,7 +47,8 @@ def process_audio(ds_path, audio, sample_rate):
     audio_handler = AudioHandler(config)
     return audio_handler.process(tmp_audio)['tmp']
 
-def output_sequences(sequence_blendshapes, out_path):
+
+def output_sequences(sequence_blendshapes, out_path, audio_fname):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
@@ -55,6 +56,15 @@ def output_sequences(sequence_blendshapes, out_path):
     current_time = time.time()
     trans_list = ["1.000", "0.000", "0.000", "0.000", "0.000", "1.000", "0.000", "0.000", "0.000", "0.000", "1.000",
                   "0.000", "0.000", "0.000", "0.000", "1.000"]
+    sequence_blendshapes = uniform_filter1d(sequence_blendshapes, size=5, axis=0)  # smoothen blendshapes
+    weight = np.ones(51)
+    weight[42] = 1.1
+    weight[31] = 1.3
+    weight[49] = 1.1
+    sequence_blendshapes = sequence_blendshapes * weight
+    sequence_blendshapes[42, :] -= 0.005
+    sequence_blendshapes[31, :] -= 0.01
+    sequence_blendshapes[49, :] -= 0.005
     for i in range(sequence_blendshapes.shape[0]):
         current_time += 1.0/60
         frame_dict = {}
@@ -71,9 +81,8 @@ def output_sequences(sequence_blendshapes, out_path):
         frame_dict["time"] = "{:.3f}".format(current_time)
         output.append(frame_dict)
 
-    print(output)
-
-    with open("{}test_3.json".format(out_path), "wb") as json_file:
+        mp3_name = re.split(r'/', audio_fname)[-1]
+    with open("{}{}.json".format(out_path, mp3_name[:-4]), "wb") as json_file:
         json.dump(output, json_file)
 
 
@@ -91,9 +100,7 @@ def inference(tf_model_fname, ds_fname, audio_fname, out_path):
     graph = tf.get_default_graph()
 
     speech_features = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/speech_features:0')
-    # condition_subject_id = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/condition_subject_id:0')
     is_training = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/is_training:0')
-    # input_template = graph.get_tensor_by_name(u'VOCA/Inputs_decoder/template_placeholder:0')
     output_decoder = graph.get_tensor_by_name(u'VOCA/output_decoder:0')
 
     num_frames = processed_audio.shape[0]
@@ -104,7 +111,7 @@ def inference(tf_model_fname, ds_fname, audio_fname, out_path):
         # Restore trained model
         saver.restore(session, tf_model_fname)
         predicted_blendshapes = np.squeeze(session.run(output_decoder, feed_dict))
-        output_sequences(predicted_blendshapes, out_path)
+        output_sequences(predicted_blendshapes, out_path, audio_fname)
 
     tf.reset_default_graph()
 
@@ -148,3 +155,4 @@ def inference_interpolate_styles(tf_model_fname, ds_fname, audio_fname, template
             output_vertices += condition_weights[condition_id] * predicted_vertices
 
         output_sequence_meshes(output_vertices, template, out_path)
+

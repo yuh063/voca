@@ -50,26 +50,64 @@ class SpeechEncoder:
             factor = self._speech_encoder_size_factor
 
             with tf.name_scope('conv1_time'):
+                '''
                 conv1_time = tf.nn.relu(conv2d(inputs=speech_features_reshaped,
                                                 n_filters=int(32*factor),
                                                 k_h=3, k_w=1,
                                                 stride_h=2, stride_w=1,
                                                 activation=tf.identity,
                                                 scope='conv1'))
+                '''
+                conv1_time = conv2d(inputs=speech_features_reshaped,
+                                    n_filters=int(32 * factor),
+                                    k_h=3, k_w=1,
+                                    stride_h=2, stride_w=1,
+                                    activation=tf.identity,
+                                    scope='conv1')
+                conv1_time = tf.nn.relu(tf.contrib.layers.batch_norm(conv1_time, decay=0.9, updates_collections=None,
+                                                                     epsilon=1e-5, center=True, scale=True,
+                                                                     is_training=is_training, reuse=reuse, scope='BN1'))
+
             with tf.name_scope('conv2_time'):
+                '''
                 conv2_time = tf.nn.relu(conv2d(inputs=conv1_time,
                                                 n_filters=int(32*factor),
                                                 k_h=3, k_w=1,
                                                 stride_h=2, stride_w=1,
                                                 activation=tf.identity,
                                                 scope='conv2'))
+
+                '''
+                conv2_time = conv2d(inputs=conv1_time,
+                                    n_filters=int(32*factor),
+                                    k_h=3, k_w=1,
+                                    stride_h=2, stride_w=1,
+                                    activation=tf.identity,
+                                    scope='conv2')
+                conv2_time = tf.nn.relu(tf.contrib.layers.batch_norm(conv2_time, decay=0.9, updates_collections=None,
+                                                                     epsilon=1e-5, center=True, scale=True,
+                                                                     is_training=is_training, reuse=reuse, scope='BN2'))
+
             with tf.name_scope('conv3_time'):
+                '''
                 conv3_time = tf.nn.relu(conv2d(inputs=conv2_time,
                                                 n_filters=int(64*factor),
                                                 k_h=3, k_w=1,
                                                 stride_h=2, stride_w=1,
                                                 activation=tf.identity,
                                                 scope='conv3'))
+
+                '''
+                conv3_time = conv2d(inputs=conv2_time,
+                                    n_filters=int(64*factor),
+                                    k_h=3, k_w=1,
+                                    stride_h=2, stride_w=1,
+                                    activation=tf.identity,
+                                    scope='conv3')
+                conv3_time = tf.nn.relu(tf.contrib.layers.batch_norm(conv3_time, decay=0.9, updates_collections=None,
+                                                                     epsilon=1e-5, center=True, scale=True,
+                                                                     is_training=is_training, reuse=reuse, scope='BN3'))
+
             with tf.name_scope('conv4_time'):
                 conv4_time = tf.nn.relu(conv2d(inputs=conv3_time,
                                                 n_filters=int(64*factor),
@@ -89,7 +127,9 @@ class SpeechEncoder:
             units_in = concatenated.get_shape().as_list()[1]
 
             with tf.name_scope('fc1'):
-                fc1 = tf.nn.tanh(fc_layer(concatenated, num_units_in=units_in, num_units_out=128, scope='fc1'))
+                fc1 = tf.nn.relu(fc_layer(concatenated, num_units_in=units_in, num_units_out=128, scope='fc1'))
+                fc1 = tf.layers.dropout(fc1, rate=0.2, training=is_training)
             with tf.name_scope('fc2'):
-                fc2 = fc_layer(fc1, num_units_in=128, num_units_out=self._speech_encoding_dim, scope='fc2')
+                fc2 = tf.nn.relu(fc_layer(fc1, num_units_in=128, num_units_out=self._speech_encoding_dim, scope='fc2'))
+                fc2 = tf.layers.dropout(fc2, rate=0.2, training=is_training)
             return fc2

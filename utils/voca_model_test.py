@@ -94,7 +94,7 @@ class VOCAModel(BaseModel):
     def _build_losses(self):
         self.rec_loss = self._reconstruction_loss()
         self.velocity_loss = self._velocity_loss()
-        self.loss = self.rec_loss + self.velocity_loss
+        self.loss = self.rec_loss + self._velocity_loss()
         # self.acceleration_loss = self._acceleration_loss()
         # self.verts_reg_loss = self._verts_regularizer_loss()
         # self.loss = self.rec_loss + self.velocity_loss + self.acceleration_loss + self.verts_reg_loss
@@ -105,9 +105,12 @@ class VOCAModel(BaseModel):
 
     # calculate mean square error
     def _reconstruction_loss(self):
+        weight = np.ones(51)
+        np.put(weight, [1, 6, 10, 16, 37, 44, 48], [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
         with tf.name_scope('Reconstruction_loss'):
-            rec_loss = reconstruction_loss(predicted=self.output_decoder, real=self.target_blendshapes,
-                                           want_absolute_loss=self.config['absolute_reconstruction_loss'])
+            rec_loss = reconstruction_loss(predicted=tf.reshape(self.output_decoder, [-1, 1, self.config['num_blendshapes']]),
+                                           real=tf.reshape(self.target_blendshapes, [-1, 1, self.config['num_blendshapes']]),
+                                           weights=weight, want_absolute_loss=self.config['absolute_reconstruction_loss'])
         tf.summary.scalar('reconstruction_loss', rec_loss, collections=['train'])
         tf.summary.scalar('reconstruction_loss', rec_loss, collections=['validation'])
         # tf.summary.scalar('reconstruction_loss_training', rec_loss, collections=['train'])
@@ -115,29 +118,34 @@ class VOCAModel(BaseModel):
         return rec_loss
 
     def _velocity_loss(self):
+        weight = np.ones(51)
+        np.put(weight, [1, 6, 10, 16, 37, 44, 48], [2, 2, 2, 2, 2, 2, 2])
         if self.config['velocity_weight'] > 0.0:
             assert(self.config['num_consecutive_frames'] >= 2)
-            blendshapes_predicted = tf.reshape(self.output_decoder, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames'], ])
-            print(self.output_decoder.get_shape())
-            print(blendshapes_predicted.get_shape())
-            x1_pred = blendshapes_predicted[:, :, 1]
-            x2_pred = blendshapes_predicted[:, :, 0]
-            velocity_pred = x1_pred-x2_pred
-            velocity_pred = tf.expand_dims(velocity_pred, 2)
+            blendshapes_predicted = tf.reshape(self.output_decoder, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames']])
+            # print(self.output_decoder.get_shape())
+            velocity_loss = 0
+            for i in range(self.config['num_consecutive_frames']-1):
+                x1_pred = blendshapes_predicted[:, :, i+1]
+                x2_pred = blendshapes_predicted[:, :, i]
+                velocity_pred = x1_pred-x2_pred
+                velocity_pred = tf.expand_dims(velocity_pred, 1)
 
-            print(velocity_pred.get_shape())
+                # print(velocity_pred.get_shape())
 
-            blendshapes_target = tf.reshape(self.target_blendshapes, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames'], ])
-            x1_target = blendshapes_target[:, :, 1]
-            x2_target = blendshapes_target[:, :, 0]
-            velocity_target = x1_target-x2_target
-            velocity_target = tf.expand_dims(velocity_target, 2)
+                blendshapes_target = tf.reshape(self.target_blendshapes, [-1, self.config['num_blendshapes'], self.config['num_consecutive_frames']])
+                x1_target = blendshapes_target[:, :, i+1]
+                x2_target = blendshapes_target[:, :, i]
+                velocity_target = x1_target-x2_target
+                velocity_target = tf.expand_dims(velocity_target, 1)
 
-            print(velocity_target.get_shape())
+                # print(velocity_target.get_shape())
 
-            with tf.name_scope('Velocity_loss'):
-                velocity_loss = self.config['velocity_weight']*reconstruction_loss(predicted=velocity_pred, real=velocity_target,
-                                                        want_absolute_loss=self.config['absolute_reconstruction_loss'])
+                with tf.name_scope('Velocity_loss{}'.format(i+1)):
+                    tmp = self.config['velocity_weight']*reconstruction_loss(predicted=velocity_pred, real=velocity_target,
+                                                                                       want_absolute_loss=self.config['absolute_reconstruction_loss'])
+                velocity_loss += tmp
+            velocity_loss = velocity_loss/(self.config['num_consecutive_frames']-1)
             tf.summary.scalar('velocity_loss_training', velocity_loss, collections=['train'])
             tf.summary.scalar('velocity_loss_validation', velocity_loss, collections=['validation'])
             return velocity_loss
