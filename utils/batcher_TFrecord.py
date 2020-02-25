@@ -94,6 +94,6 @@ class Batcher:
         # Parse the input `tf.Example` proto using the dictionary above
         example = tf.io.parse_example(record_batch, feature_description)
         example['audio'] = tf.reshape(example['audio'], [self.batch_size*num_frames, window_size, num_features])
-        example['blendshape'] = tf.reshape(example['blendshap e'], [self.batch_size*num_frames, num_blendshapes])
+        example['blendshape'] = tf.reshape(example['blendshape'], [self.batch_size*num_frames, num_blendshapes])
         print(example['audio'], example['blendshape'])
         return example['audio'], example['blendshape']
