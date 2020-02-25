@@ -22,36 +22,27 @@ import json
 import time
 import numpy as np
 import tensorflow as tf
-
 import scipy
+
 from scipy.io import wavfile
 from scipy.io.wavfile import read
 from scipy.ndimage import uniform_filter1d
-
+from pydub import AudioSegment
+from glob import glob
 from audio_handler_test import AudioHandler
-from psbody.mesh import Mesh
+from hparams import load_hparams
 
 
-def process_audio(ds_path, audio, sample_rate):
-    config = {}
-    config['deepspeech_graph_fname'] = ds_path
-    config['audio_feature_type'] = 'deepspeech'
-    config['num_audio_features'] = 29
-    config['audio_window_size'] = 16
-    config['audio_window_stride'] = 1
-    config['sample_rate'] = 48000
-
+def process_audio(config, audio):
     audio_arr = np.array(audio, dtype=float)
     tmp_audio = {'tmp': audio_arr}
 
     audio_handler = AudioHandler(config)
+
     return audio_handler.process(tmp_audio)['tmp']
 
 
-def output_sequences(sequence_blendshapes, out_path, audio_fname):
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-
+def output_sequences(sequence_blendshapes, out_path, audio_fname, config):
     output = []
     current_time = time.time()
     trans_list = ["1.000", "0.000", "0.000", "0.000", "0.000", "1.000", "0.000", "0.000", "0.000", "0.000", "1.000",
@@ -62,11 +53,11 @@ def output_sequences(sequence_blendshapes, out_path, audio_fname):
     weight[31] = 1.3
     weight[49] = 1.1
     sequence_blendshapes = sequence_blendshapes * weight
-    sequence_blendshapes[42, :] -= 0.005
-    sequence_blendshapes[31, :] -= 0.01
-    sequence_blendshapes[49, :] -= 0.005
+    sequence_blendshapes[:, 42] -= 0.005
+    sequence_blendshapes[:, 31] -= 0.01
+    sequence_blendshapes[:, 49] -= 0.005
     for i in range(sequence_blendshapes.shape[0]):
-        current_time += 1.0/60
+        current_time += 1.0/30
         frame_dict = {}
         tmp_dict = {}
         for j in range(sequence_blendshapes.shape[1]):
@@ -81,19 +72,27 @@ def output_sequences(sequence_blendshapes, out_path, audio_fname):
         frame_dict["time"] = "{:.3f}".format(current_time)
         output.append(frame_dict)
 
-        mp3_name = re.split(r'/', audio_fname)[-1]
+    if config['shift_length'] > 0:
+        for i in range(int(config['shift_length'])):
+            output.insert(0, output[0])
+
+    mp3_name = re.split(r'/', audio_fname)[-1]
     with open("{}{}.json".format(out_path, mp3_name[:-4]), "wb") as json_file:
         json.dump(output, json_file)
 
 
-def inference(tf_model_fname, ds_fname, audio_fname, out_path):
+def inference(config, audio_fname):
+    tf_model_fname = config['tf_model_fname']
+    out_path = config['out_path']
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
     sample_rate, audio = wavfile.read(audio_fname)
     if audio.ndim != 1:
         print('Audio has multiple channels, only first channel is considered')
         audio = audio[:, 0]
 
-    processed_audio = process_audio(ds_fname, audio, sample_rate)
+    processed_audio = process_audio(config, audio)
 
     # Load previously saved meta graph in the default graph
     saver = tf.train.import_meta_graph(tf_model_fname + '.meta')
@@ -103,7 +102,7 @@ def inference(tf_model_fname, ds_fname, audio_fname, out_path):
     is_training = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/is_training:0')
     output_decoder = graph.get_tensor_by_name(u'VOCA/output_decoder:0')
 
-    num_frames = processed_audio.shape[0]
+    # num_frames = processed_audio.shape[0]
     feed_dict = {speech_features: np.expand_dims(np.stack(processed_audio), -1),
                  is_training: False}
 
@@ -111,48 +110,16 @@ def inference(tf_model_fname, ds_fname, audio_fname, out_path):
         # Restore trained model
         saver.restore(session, tf_model_fname)
         predicted_blendshapes = np.squeeze(session.run(output_decoder, feed_dict))
-        output_sequences(predicted_blendshapes, out_path, audio_fname)
+        # print(predicted_blendshapes.shape)
+        output_sequences(predicted_blendshapes, out_path, audio_fname, config)
 
     tf.reset_default_graph()
 
+    if config['trim_length'] > 0:
+        wav_trim(out_path, config['trim_length'], audio_fname)
 
-def inference_interpolate_styles(tf_model_fname, ds_fname, audio_fname, template_fname, condition_weights, out_path):
-    template = Mesh(filename=template_fname)
 
-    sample_rate, audio = wavfile.read(audio_fname)
-    if audio.ndim != 1:
-        print('Audio has multiple channels, only first channel is considered')
-        audio = audio[:, 0]
-
-    processed_audio = process_audio(ds_fname, audio, sample_rate)
-
-    # Load previously saved meta graph in the default graph
-    saver = tf.train.import_meta_graph(tf_model_fname + '.meta')
-    graph = tf.get_default_graph()
-
-    speech_features = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/speech_features:0')
-    # condition_subject_id = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/condition_subject_id:0')
-    is_training = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/is_training:0')
-    # input_template = graph.get_tensor_by_name(u'VOCA/Inputs_decoder/template_placeholder:0')
-    output_decoder = graph.get_tensor_by_name(u'VOCA/output_decoder:0')
-
-    non_zeros = np.where(condition_weights > 0.0)[0]
-    condition_weights[non_zeros] /= sum(condition_weights[non_zeros])
-
-    num_frames = processed_audio.shape[0]
-    output_vertices = np.zeros((num_frames, template.v.shape[0], template.v.shape[1]))
-
-    with tf.Session() as session:
-        # Restore trained model
-        saver.restore(session, tf_model_fname)
-
-        for condition_id in non_zeros:
-            feed_dict = {speech_features: np.expand_dims(np.stack(processed_audio), -1),
-                         condition_subject_id: np.repeat(condition_id, num_frames),
-                         is_training: False,
-                         input_template: np.repeat(template.v[np.newaxis, :, :, np.newaxis], num_frames, axis=0)}
-            predicted_vertices = np.squeeze(session.run(output_decoder, feed_dict))
-            output_vertices += condition_weights[condition_id] * predicted_vertices
-
-        output_sequence_meshes(output_vertices, template, out_path)
-
+def wav_trim(output_path, trim_length, audio_fname):
+    song = AudioSegment.from_wav(audio_fname)
+    trim_audio = song[trim_length:]
+    trim_audio.export(output_path + 'trim_' + audio_fname[-40:], format='wav')
