@@ -18,9 +18,9 @@ For comments or questions, please email us at voca@tue.mpg.de
 import tensorflow as tf
 
 from hparams import load_hparams
-from utils.data_handler_test import DataHandler
-from utils.batcher_test import Batcher
-from utils.voca_model_test import VOCAModel as Model
+from utils.data_handler_TFrecord import DataHandler
+from utils.batcher_TFrecord import Batcher
+from utils.voca_model_TFrecord import VOCAModel as Model
 
 
 def main():

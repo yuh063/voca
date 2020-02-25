@@ -15,7 +15,7 @@ def load_hparams():
     ################################
     config['deepspeech_graph_fname'] = './ds_graph/output_graph.pb'
     config['checkpoint_dir'] = './littlelights_training_test'
-    config['dataset_path'] = '/home/littlelight/voca/littlelights_dataset_ai_train_1_21/'
+    config['dataset_path'] = '/home/littlelight/voca/littlelights_dataset_10hours/'
     config['audio_json_pair_file_name'] = 'audio_json_match.txt'
     config['clear_unmatched_animation_pairs'] = True
 
@@ -27,8 +27,8 @@ def load_hparams():
     config['speech_encoder_size_factor'] = 1.0
     config['absolute_reconstruction_loss'] = False
     config['velocity_weight'] = 0.5
-    config['frame_rate'] = 60  # Currently only support 30 and 60
-    config['num_consecutive_frames'] = 10
+    config['frame_rate'] = 30  # Currently only support 30 and 60
+    config['num_consecutive_frames'] = 10  # Please create new TFRecord to change this parameter
 
     ################################
     # Optimization Hyperparameters #
@@ -38,5 +38,14 @@ def load_hparams():
     config['adam_beta1_value'] = 0.9
     config['learning_rate'] = 1e-3
     config['epoch_num'] = 200
+
+    ################################
+    # Output Parameter             #
+    ################################
+    config['tf_model_fname'] = './littlelights_training_test/checkpoints/gstep_656200.model'
+    config['out_path'] = '/home/littlelight/voca/littlelights_30fps_model/'
+    config['audio_path'] = '/home/littlelight/voca/littlelights_class_0_wav/'
+    config['trim_length'] = 0
+    config['shift_length'] = 6
 
     return config

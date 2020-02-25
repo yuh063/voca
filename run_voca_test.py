@@ -17,23 +17,18 @@ For comments or questions, please email us at voca@tue.mpg.de
 
 
 import os
-import glob
-import argparse
+
+from hparams import load_hparams
+from glob import glob
 from utils.inference_test import inference
 
 
 def main():
-    tf_model_fname = './littlelights_training/checkpoints/gstep_129030.model'
-    ds_fname = './ds_graph/output_graph.pb'
-    audio_fname = './littlelights_output/test_3.wav'
-    # template_fname = args.template_fname
-    # condition_idx = args.condition_idx
-    out_path = './littlelights_output/'
-
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-
-    inference(tf_model_fname, ds_fname, audio_fname, out_path)
+    config = load_hparams()
+    audio_files = config['audio_path'] + '*.wav'
+    audio_fnames = glob(audio_files)
+    for audio_fname in audio_fnames:
+        inference(config, audio_fname)
 
 
 if __name__ == '__main__':
